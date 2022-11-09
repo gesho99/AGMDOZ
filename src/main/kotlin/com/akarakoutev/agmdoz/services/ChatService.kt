@@ -2,43 +2,54 @@ package com.akarakoutev.agmdoz.services
 
 import com.akarakoutev.agmdoz.core.ChatMessage
 import com.akarakoutev.agmdoz.core.MessageType
+import com.akarakoutev.agmdoz.core.Model
+import com.akarakoutev.agmdoz.db.MessageRepo
+import com.akarakoutev.agmdoz.db.ModelRepo
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.util.*
-import kotlin.NoSuchElementException
 
 @Service
-class ChatService @Autowired constructor (val objectMapper: ObjectMapper) {
-    fun getAll() {
-        TODO("Get all from DB")
+class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo, val modelRepo: ModelRepo) {
+    fun getAll(): List<ChatMessage> {
+        return messageRepo.findAll()
     }
 
-    fun get(idStr: String) {
+    fun get(idStr: String): ChatMessage {
         val id = UUID.fromString(idStr)
-        TODO("Get from DB")
-        throw NoSuchElementException("This message does not exist")
+        return messageRepo.findById(id).or {
+            throw NoSuchElementException("This message does not exist")
+        }.get()
     }
 
     fun delete(idStr: String) {
         val id = UUID.fromString(idStr)
-        TODO("Delete from DB")
+        messageRepo.deleteAllById(listOf(id))
     }
 
     fun add(messageJsonString: String) {
         val message = objectMapper.readValue(messageJsonString, ChatMessage::class.java)
         message.type = evaluate(message)
-        TODO("Save to DB")
+        val model = getModel()
+        message.modelVersion = model!!.version
+        messageRepo.save(message)
     }
 
     // Model functions
 
-    fun getModel(version: String) {
-        TODO("Get model version from DB")
+    fun getModel(version: String? = null): Model? {
+        return if (version == null) {
+            modelRepo.findByOrderByVersion().firstOrNull()
+        } else {
+            modelRepo.findById(version).or {
+                throw NoSuchElementException("This model version does not exist")
+            }.get()
+        }
     }
 
-    fun getModels() {
-        TODO("Get all model versions from DB")
+    fun getModels(): List<Model> {
+        return modelRepo.findAll()
     }
 
     fun retrain() {

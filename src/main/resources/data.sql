@@ -1,0 +1,1 @@
+INSERT INTO model (version, training_set_size, ts) VALUES (0.1, 0, UNIX_TIMESTAMP());
