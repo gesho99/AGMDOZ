@@ -6,6 +6,7 @@ from scipy.special import softmax
 import csv
 import urllib.request
 import torch
+import json
 
 
 def preprocess(text):
@@ -32,7 +33,7 @@ labels = [row[1] for row in csvreader if len(row) > 1]
 
 # PT
 model = AutoModelForSequenceClassification.from_pretrained(MODEL)
-model.save_pretrained(MODEL)
+#model.save_pretrained(MODEL)
 
 text = "Good night 😊"
 text = preprocess(text)
