@@ -44,7 +44,15 @@ scores = softmax(scores)
 
 ranking = np.argsort(scores)
 ranking = ranking[::-1]
+
+dictionary = {}
+
 for i in range(scores.shape[0]):
     l = labels[ranking[i]]
     s = scores[ranking[i]]
-    print(f"{i + 1}) {l} {np.round(float(s), 4)}")
+    dictionary[l] = np.round(float(s), 4)
+
+json_object = json.dumps(dictionary, indent=4)
+
+with open("result.json", "w") as outfile:
+    outfile.write(json_object)
