@@ -8,12 +8,14 @@ import com.akarakoutev.agmdoz.db.ModelRepo
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
+import java.io.File
+import java.io.IOException
 import java.lang.Integer.parseInt
 import java.lang.Long.parseLong
 import java.time.Instant
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 @Service
 class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo, val modelRepo: ModelRepo) {
@@ -75,12 +77,35 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         //TODO("Run retraining script")
     }
 
-    fun evaluate(messageStr: String): Pair<MessageType, Float> {
-        return Pair(MessageType.values()[(Random().nextInt(MessageType.values().size))], Random().nextFloat())
-        // TODO("Get result from evaluation script")
+    fun runScript(workingDir: File, vararg command: String): String? {
+        return try {
+            val proc = ProcessBuilder(*command)
+                .directory(workingDir)
+                .redirectOutput(ProcessBuilder.Redirect.PIPE)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .start()
+
+            proc.waitFor(60, TimeUnit.MINUTES)
+            proc.inputStream.bufferedReader().readText()
+        } catch(e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun evaluate(messageStr: String): Pair<MessageType, Double> {
+        val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, MODEL_FILE_NAME, messageStr)
+        val resultJson = objectMapper.readTree(resultJsonStr)
+        val maxValueElement = resultJson.fields().asSequence().reduce {
+                a, b -> if (a.value.doubleValue() > b.value.doubleValue()) a else b
+        }
+        return Pair(MessageType.valueOf(maxValueElement.key.toString().uppercase()), maxValueElement.value.asDouble())
     }
 
     companion object {
         const val MESSAGE_BATCH_SIZE = 10
+        private const val MODEL_DIRECTORY = "src/main/resources/ml"
+        private const val MODEL_SCRIPT_ENGINE = "python"
+        private const val MODEL_FILE_NAME = "evaluate.py"
     }
 }
