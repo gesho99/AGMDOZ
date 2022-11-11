@@ -55,12 +55,7 @@ def main(*args):
         s = scores[ranking[i]]
         dictionary[l] = np.round(float(s), 4)
 
-    json_object = json.dumps(dictionary, indent=4)
-
-    with open("result.json", "w") as outfile:
-        outfile.write(json_object)
-
-    print(json_object)
+    print(json.dumps(dictionary, indent=4))
 
 
 if __name__ == '__main__':
