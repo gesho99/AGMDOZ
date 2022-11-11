@@ -93,8 +93,12 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         }
     }
 
+    fun transcribe(soundFile: File): String? {
+        return runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, TRANSCRIBE_MODEL_FILE_NAME, soundFile.canonicalPath)
+    }
+
     fun evaluate(messageStr: String): Pair<MessageType, Double> {
-        val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, MODEL_FILE_NAME, messageStr)
+        val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, EVAL_MODEL_FILE_NAME, messageStr)
         val resultJson = objectMapper.readTree(resultJsonStr)
         val maxValueElement = resultJson.fields().asSequence().reduce {
                 a, b -> if (a.value.doubleValue() > b.value.doubleValue()) a else b
@@ -106,6 +110,7 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         const val MESSAGE_BATCH_SIZE = 10
         private const val MODEL_DIRECTORY = "src/main/resources/ml"
         private const val MODEL_SCRIPT_ENGINE = "python"
-        private const val MODEL_FILE_NAME = "evaluate.py"
+        private const val EVAL_MODEL_FILE_NAME = "evaluate.py"
+        private const val TRANSCRIBE_MODEL_FILE_NAME = "transcribe.py"
     }
 }
