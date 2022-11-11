@@ -19,6 +19,16 @@ import java.util.concurrent.TimeUnit
 
 @Service
 class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo, val modelRepo: ModelRepo) {
+
+    companion object {
+        const val MESSAGE_BATCH_SIZE = 10
+        private const val MODEL_DIRECTORY = "src/main/resources/ml"
+        private const val MODEL_SCRIPT_ENGINE = "python"
+        private const val EVAL_MODEL_FILE_NAME = "evaluate.py"
+        private const val TRANSCRIBE_MODEL_FILE_NAME = "transcribe.py"
+        private const val PUNCTUATE_MODEL_FILE_NAME = "punctuate.py"
+    }
+
     fun getPageCount(): Long {
         return (messageRepo.count() / MESSAGE_BATCH_SIZE) + 1
     }
@@ -47,7 +57,9 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         messageRepo.save(message)
     }
 
-    // Model functions
+    //=================//
+    // Model functions //
+    //=================//
 
     fun getModel(version: String? = null): Model? {
         return if (version == null) {
@@ -77,7 +89,24 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         //TODO("Run retraining script")
     }
 
-    fun runScript(workingDir: File, vararg command: String): String? {
+    fun buildMoodChart(soundFile: File) {
+        val transcribedAudio = transcribe(soundFile)!!
+        val punctuatedTranscription = punctuate(transcribedAudio)!!
+        punctuatedTranscription.split(".").forEach {
+            val evaluated = evaluate(it)
+            println(evaluated)
+        }
+    }
+
+    /**
+     * Python Dependencies:
+     *  - sentencepiece
+     *  - deepmultilingualpunctuation
+     *  - transformers
+     *  - scipy
+     *  - numpy
+     */
+    private fun runScript(workingDir: File, vararg command: String): String? {
         return try {
             val proc = ProcessBuilder(*command)
                 .directory(workingDir)
@@ -93,9 +122,9 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         }
     }
 
-    fun transcribe(soundFile: File): String? {
-        return runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, TRANSCRIBE_MODEL_FILE_NAME, soundFile.canonicalPath)
-    }
+    fun punctuate(text: String): String? = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, PUNCTUATE_MODEL_FILE_NAME, text)?.trim()?.replace("\n","")
+
+    fun transcribe(soundFile: File): String? = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, TRANSCRIBE_MODEL_FILE_NAME, soundFile.canonicalPath)?.trim()?.replace("\n","")
 
     fun evaluate(messageStr: String): Pair<MessageType, Double> {
         val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, EVAL_MODEL_FILE_NAME, messageStr)
@@ -104,13 +133,5 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
                 a, b -> if (a.value.doubleValue() > b.value.doubleValue()) a else b
         }
         return Pair(MessageType.valueOf(maxValueElement.key.toString().uppercase()), maxValueElement.value.asDouble())
-    }
-
-    companion object {
-        const val MESSAGE_BATCH_SIZE = 10
-        private const val MODEL_DIRECTORY = "src/main/resources/ml"
-        private const val MODEL_SCRIPT_ENGINE = "python"
-        private const val EVAL_MODEL_FILE_NAME = "evaluate.py"
-        private const val TRANSCRIBE_MODEL_FILE_NAME = "transcribe.py"
     }
 }
