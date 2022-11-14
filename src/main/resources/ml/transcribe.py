@@ -1,5 +1,4 @@
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-import numpy as np
 import torch
 import librosa
 import sys
@@ -9,10 +8,8 @@ processor = Wav2Vec2Processor.from_pretrained(r'yongjian/wav2vec2-large-a')
 
 
 def main(*args):
-    # Load input
     audio_file, sr = librosa.load(args[0][0])
 
-    # Inference
     sample_rate = processor.feature_extractor.sampling_rate
     with torch.no_grad():
         model_inputs = processor(audio_file, sampling_rate=sample_rate, return_tensors="pt", padding=True)

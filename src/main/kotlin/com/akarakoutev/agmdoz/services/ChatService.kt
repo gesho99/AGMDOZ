@@ -6,27 +6,35 @@ import com.akarakoutev.agmdoz.core.Model
 import com.akarakoutev.agmdoz.db.MessageRepo
 import com.akarakoutev.agmdoz.db.ModelRepo
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.web.multipart.MultipartFile
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.Integer.parseInt
 import java.lang.Long.parseLong
+import java.nio.file.Files
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.TimeUnit
+
 
 @Service
 class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo, val modelRepo: ModelRepo) {
 
     companion object {
+        private val logger = LoggerFactory.getLogger(ChatService::class.java)
+
         const val MESSAGE_BATCH_SIZE = 10
         private const val MODEL_DIRECTORY = "src/main/resources/ml"
         private const val MODEL_SCRIPT_ENGINE = "python"
         private const val EVAL_MODEL_FILE_NAME = "evaluate.py"
         private const val TRANSCRIBE_MODEL_FILE_NAME = "transcribe.py"
         private const val PUNCTUATE_MODEL_FILE_NAME = "punctuate.py"
+        private const val VISUALIZE_SCRIPT_FILE_NAME = "visualize.py"
     }
 
     fun getPageCount(): Long {
@@ -89,13 +97,19 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         //TODO("Run retraining script")
     }
 
-    fun buildMoodChart(soundFile: File) {
+    fun buildMoodChart(reqId: UUID, multipartSoundFile: MultipartFile): File {
+        val soundFile = File("src/main/resources/$reqId-tmp.${multipartSoundFile.originalFilename!!.substring(multipartSoundFile.originalFilename!!.lastIndexOf(".") + 1)}")
+        FileOutputStream(soundFile).use { os -> os.write(multipartSoundFile.bytes) }
+
         val transcribedAudio = transcribe(soundFile)!!
         val punctuatedTranscription = punctuate(transcribedAudio)!!
-        punctuatedTranscription.split(".").forEach {
-            val evaluated = evaluate(it)
-            println(evaluated)
-        }
+        val evaluated = punctuatedTranscription.split(".").filter { it.isNotEmpty() }.map {
+            val evaluatedValues = evaluateAll(it)
+            listOf(evaluatedValues[MessageType.POSITIVE]!!, evaluatedValues[MessageType.NEUTRAL]!!, evaluatedValues[MessageType.NEGATIVE]!!)
+        }.flatten()
+        val result = visualise(reqId, evaluated)
+        Files.delete(soundFile.toPath())
+        return result
     }
 
     /**
@@ -105,6 +119,8 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
      *  - transformers
      *  - scipy
      *  - numpy
+     *  - matplotlib
+     *  - pandas
      */
     private fun runScript(workingDir: File, vararg command: String): String? {
         return try {
@@ -115,6 +131,7 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
                 .start()
 
             proc.waitFor(60, TimeUnit.MINUTES)
+            //logger.error(proc.errorStream.bufferedReader().readText())
             proc.inputStream.bufferedReader().readText()
         } catch(e: IOException) {
             e.printStackTrace()
@@ -122,16 +139,49 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         }
     }
 
-    fun punctuate(text: String): String? = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, PUNCTUATE_MODEL_FILE_NAME, text)?.trim()?.replace("\n","")
+    fun visualise(reqId: UUID, values: List<Double>): File {
+        logger.info("Running visualization script")
+        val valuesStr = values.map { it.toString() }.toTypedArray()
+        runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, VISUALIZE_SCRIPT_FILE_NAME, reqId.toString(), *valuesStr)
+        while (true) {
+            var resultPng: File
+            try {
+                resultPng = File("$MODEL_DIRECTORY/$reqId.png")
+                return resultPng
+            } catch (e: Exception) {
+                // Expected while waiting
+                logger.warn("Result image not generated yet, retrying...")
+                Thread.sleep(1000)
+            }
+        }
+    }
 
-    fun transcribe(soundFile: File): String? = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, TRANSCRIBE_MODEL_FILE_NAME, soundFile.canonicalPath)?.trim()?.replace("\n","")
+    fun punctuate(text: String): String? {
+        logger.info("Running punctuation model")
+        return runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, PUNCTUATE_MODEL_FILE_NAME, text)?.trim()?.replace("\n","")
+    }
+
+    fun transcribe(soundFile: File): String? {
+        logger.info("Running transcription model")
+        return runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, TRANSCRIBE_MODEL_FILE_NAME, soundFile.canonicalPath)?.trim()?.replace("\n","")
+    }
 
     fun evaluate(messageStr: String): Pair<MessageType, Double> {
+        logger.info("Running evaluation model")
         val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, EVAL_MODEL_FILE_NAME, messageStr)
         val resultJson = objectMapper.readTree(resultJsonStr)
         val maxValueElement = resultJson.fields().asSequence().reduce {
                 a, b -> if (a.value.doubleValue() > b.value.doubleValue()) a else b
         }
         return Pair(MessageType.valueOf(maxValueElement.key.toString().uppercase()), maxValueElement.value.asDouble())
+    }
+
+    fun evaluateAll(messageStr: String): Map<MessageType, Double> {
+        logger.info("Running evaluation model")
+        val resultJsonStr = runScript(File(MODEL_DIRECTORY), MODEL_SCRIPT_ENGINE, EVAL_MODEL_FILE_NAME, messageStr)
+        val resultJson = objectMapper.readTree(resultJsonStr)
+        return resultJson.fields().asSequence().map {
+                MessageType.valueOf(it.key.toString().uppercase()) to it.value.doubleValue()
+        }.toMap()
     }
 }

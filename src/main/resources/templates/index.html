@@ -18,7 +18,7 @@
         </nav>
         <div class="container my-2" align="center">
             <h3>Messages</h3>
-            <form method="POST" class="card" action="/evaluate">
+            <form method="POST" class="card" action="/evaluate" style="margin: 5%">
                 <div th:unless="${evaluation == null}">
                     Evaluation:
                     <div th:text="${evaluation}"></div>
@@ -27,6 +27,18 @@
                 <div class="form-group">
                     <label for="expr">Input Expression</label>
                     <textarea style="width:80%" class="form-control" name="expr" id="expr" placeholder="Expression" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Evaluate</button>
+            </form>
+            <form method="POST" enctype="multipart/form-data" class="card" action="/evaluate/audio" style="margin: 5%">
+                <div th:unless="${reqId == null}">
+                    Audio Evaluation:
+                    <img th:src="${reqId} + @{.png}"/>
+                    <hr>
+                </div>
+                <div class="form-group">
+                    <label for="file">Input File (MP3 not supported in <b>librosa.py</b>)</label>
+                    <input type="file" name="file" id="file">
                 </div>
                 <button type="submit" class="btn btn-primary">Evaluate</button>
             </form>

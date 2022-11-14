@@ -2,7 +2,7 @@ HELP.md
 target/
 src/main/resources/ml/cardiffnlp/
 src/main/resources/ml/venv/
-src/main/resources/ml/result.json
+src/main/resources/static/
 database/
 database.mv.db
 database.trace.db
