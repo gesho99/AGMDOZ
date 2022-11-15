@@ -10,4 +10,6 @@ import org.springframework.stereotype.Repository
 interface MessageRepo : JpaRepository<ChatMessage, Long> {
     @Query(value = "SELECT * FROM chat_message ORDER BY id DESC", nativeQuery = true)
     fun findAllPaginated(pageable: Pageable): List<ChatMessage>
+
+    fun findByChatId(chatId: String): List<ChatMessage>
 }

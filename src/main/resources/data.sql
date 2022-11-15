@@ -1,7 +1,6 @@
-CREATE TABLE model (version VARCHAR(8) PRIMARY KEY, training_set_size INT, ts TIMESTAMP);
 CREATE TABLE chat_message (
     id INT PRIMARY KEY,
-    chatId INT,
+    chatId VARCHAR(128),
     userId INT NOT NULL,
     model_version VARCHAR(4),
     ts TIMESTAMP NOT NULL,

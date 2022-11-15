@@ -2,9 +2,7 @@ package com.akarakoutev.agmdoz.services
 
 import com.akarakoutev.agmdoz.core.ChatMessage
 import com.akarakoutev.agmdoz.core.MessageType
-import com.akarakoutev.agmdoz.core.Model
 import com.akarakoutev.agmdoz.db.MessageRepo
-import com.akarakoutev.agmdoz.db.ModelRepo
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -14,16 +12,16 @@ import org.springframework.web.multipart.MultipartFile
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.lang.Integer.parseInt
 import java.lang.Long.parseLong
 import java.nio.file.Files
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 
 @Service
-class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo, val modelRepo: ModelRepo) {
+class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val messageRepo: MessageRepo) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(ChatService::class.java)
@@ -45,10 +43,8 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         return messageRepo.findAllPaginated(PageRequest.of(page - 1, MESSAGE_BATCH_SIZE))
     }
 
-    fun get(idStr: String): ChatMessage {
-        return messageRepo.findById(parseLong(idStr)).or {
-            throw NoSuchElementException("This message does not exist")
-        }.get()
+    fun getByChatId(chatId: String): List<ChatMessage> {
+        return messageRepo.findByChatId(chatId)
     }
 
     fun delete(idStr: String) {
@@ -57,45 +53,32 @@ class ChatService @Autowired constructor (val objectMapper: ObjectMapper, val me
         }
     }
 
+    fun generateChatMoodChart(idStr: String){
+        val messages = getByChatId(idStr)
+        visualise(UUID.fromString(idStr), messages.map {
+            val evaluationsMap = objectMapper.readTree(it.evaluationsJson!!)
+            listOf(
+                evaluationsMap[MessageType.POSITIVE.name].asDouble(),
+                evaluationsMap[MessageType.NEUTRAL.name].asDouble(),
+                evaluationsMap[MessageType.NEGATIVE.name].asDouble()
+            )
+        }.flatten())
+    }
+
     fun add(messageJsonString: String) {
         val message = objectMapper.readValue(messageJsonString, ChatMessage::class.java)
-        message.type = evaluate(message.text)
-        val model = getModel()
-        message.modelVersion = model!!.version
-        messageRepo.save(message)
+        message.modelVersion = "1"
+        message.ts = Instant.now()
+        thread {
+            message.text.split(".").filter { it.isNotEmpty() }.forEach {
+                messageRepo.save(ChatMessage(null, message.chatId, message.userId, message.modelVersion, message.ts, it, objectMapper.writeValueAsString(evaluateAll(it))))
+            }
+        }
     }
 
     //=================//
     // Model functions //
     //=================//
-
-    fun getModel(version: String? = null): Model? {
-        return if (version == null) {
-            modelRepo.findByOrderByVersionDesc().firstOrNull()
-        } else {
-            modelRepo.findById(version).or {
-                throw NoSuchElementException("This model version does not exist")
-            }.get()
-        }
-    }
-
-    fun getModels(): List<Model> {
-        return modelRepo.findAll()
-    }
-
-    fun retrain(): String {
-        val lastVersion = modelRepo.findByOrderByVersionDesc().ifEmpty {
-            listOf(Model("0.1", 1, Instant.now()))
-        }.first().version
-
-        val (major, minor) = lastVersion.split(".")
-        val newVersion = "$major.${(parseInt(minor) + 1)}"
-
-        val newModel = Model(newVersion, 1, Instant.now())
-        modelRepo.save(newModel)
-        return newModel.version
-        //TODO("Run retraining script")
-    }
 
     fun buildMoodChart(reqId: UUID, multipartSoundFile: MultipartFile): File {
         val soundFile = File("src/main/resources/$reqId-tmp.${multipartSoundFile.originalFilename!!.substring(multipartSoundFile.originalFilename!!.lastIndexOf(".") + 1)}")

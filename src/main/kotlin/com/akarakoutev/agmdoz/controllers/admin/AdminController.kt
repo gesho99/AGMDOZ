@@ -51,19 +51,13 @@ class AdminController @Autowired constructor(val chatService: ChatService){
         }
     }
 
-    @GetMapping("/model/all")
-    fun models(model: Model): String {
+    @GetMapping("/chat")
+    fun getChat(model: Model, @RequestParam chatId: String): String {
         return handle(model) {
-            model.addAttribute("models", chatService.getModels())
-            "models"
-        }
-    }
-
-    @PostMapping("/model/retrain")
-    fun retrain(model: Model): String {
-        return handle(model) {
-            chatService.retrain()
-            "redirect:/model/all"
+            chatService.generateChatMoodChart(chatId)
+            model.addAttribute("messages", chatService.getByChatId(chatId))
+            model.addAttribute("chatId", chatId)
+            "chat"
         }
     }
 

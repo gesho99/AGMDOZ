@@ -9,16 +9,9 @@
               crossorigin="anonymous">
     </head>
     <body class="bg-light">
-        <nav class="navbar navbar-fixed-top navbar-expand-lg navbar-dark bg-dark">
-            <ul class="navbar-nav mr-auto">
-                <li class="nav-item active">
-                    <a th:href="@{/model/all}" class="nav-link">Models</a>
-                </li>
-            </ul>
-        </nav>
         <div class="container my-2" align="center">
             <h3>Messages</h3>
-            <form method="POST" class="card" action="/evaluate" style="margin: 5%">
+            <form method="POST" class="card" action="/evaluate" style="margin: 5%; padding: 5%">
                 <div th:unless="${evaluation == null}">
                     Evaluation:
                     <div th:text="${evaluation}"></div>
@@ -30,7 +23,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary">Evaluate</button>
             </form>
-            <form method="POST" enctype="multipart/form-data" class="card" action="/evaluate/audio" style="margin: 5%">
+            <form method="POST" enctype="multipart/form-data" class="card" action="/evaluate/audio" style="margin: 5%; padding: 5%">
                 <div th:unless="${reqId == null}">
                     Audio Evaluation:
                     <img th:src="${reqId} + @{.png}"/>
@@ -69,12 +62,14 @@
                 <tbody>
                 <tr th:each="message:${messages}">
                     <td th:text="${message.id}"></td>
-                    <td th:text="${message.chatId}"></td>
+                    <td>
+                        <a th:href="@{/chat/?chatId=} + ${message.chatId}"><span th:text="${message.chatId}"></span></a>
+                    </td>
                     <td th:text="${message.userId}"></td>
                     <td th:text="${message.modelVersion}"></td>
                     <td th:text="${message.ts}"></td>
                     <td th:text="${message.text}"></td>
-                    <td th:text="${message.type}"></td>
+                    <td th:text="${message.evaluationsJson}"></td>
                     <td>
                         <form th:action="@{/delete/} + ${message.id}">
                             <button type="submit" class="btn btn-danger">&times;</button>

@@ -8,12 +8,12 @@ import javax.persistence.Id
 @Entity
 data class ChatMessage(
     @GeneratedValue @Id val id: Long? = null,
-    val chatId: Int?,
+    val chatId: String,
     val userId: Long,
     var modelVersion: String?,
-    val ts: Instant = Instant.now(),
+    var ts: Instant,
     val text: String,
-    var type: Pair<MessageType, Double>?)
+    var evaluationsJson: String?)
 
 enum class MessageType {
     POSITIVE,
